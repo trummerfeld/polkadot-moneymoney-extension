@@ -59,15 +59,26 @@ WebBanking{
     prices = requestDotPrice()
   
     for address in string.gmatch(dotAddress, '([^,]+)') do
-      dotQuantity = requestDotQuantityForDotAddress(address)
+      dotFreeBalance = convertDots(requestDotQuantityForDotAddress(address)["free"])
+      dotReservedBalance = convertDots(requestDotQuantityForDotAddress(address)["reserved"])
   
       s[#s+1] = {
-        name = "DOT (Polkadot Network) " .. address,
+        name = "DOT Free (Polkadot Network) " .. address,
         currency = nil,
         market = "cryptocompare",
-        quantity = convertDots(dotQuantity),
+        quantity = dotFreeBalance,
         price = prices,
       }
+
+      if tonumber(dotReservedBalance) > 0 then
+        s[#s+1] = {
+          name = "DOT Staked (Polkadot Network)" .. address,
+          currency = nil,
+          market = "cryptocompare",
+          quantity = dotReservedBalance,
+          price = prices,
+        }
+      end
     end
   
     return {securities = s}
@@ -84,7 +95,7 @@ WebBanking{
   
   function requestDotQuantityForDotAddress(dotAddress)
     response = JSON(connection:request("GET",PolkadotRequestUrl(dotAddress), {}))
-    return response:dictionary()["data"][dotAddress]["address"]["balance"]["free"]
+    return response:dictionary()["data"][dotAddress]["address"]["balance"]
   end
   
   function cryptocompareRequestUrl()
