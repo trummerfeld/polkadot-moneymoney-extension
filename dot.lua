@@ -1,5 +1,5 @@
 -- Polkadot Network Extension for MoneyMoney
--- Gets Address Balances from Blockchair API (free tier)
+-- Gets Address Balances from Subscan API (free tier)
 --
 -- Copyright (c) 2022 trummerfeld
 -- Feel free to buy me a coffee
@@ -24,88 +24,197 @@
 -- SOFTWARE.
 
 WebBanking{
-    version = 1.0,
-    url = "https://api.blockchair.com/polkadot/raw/address/",
-    description = "Include your Polkadot Holdings in MoneyMoney by providing comma separated polkadot wallet addresses as the username. Data is provided via free tier of BLockchai API.",
-    services= { "Polkadot" }
+  version = 2.0,
+  url = "https://assethub-polkadot.api.subscan.io/api/v2/scan/account/tokens",
+  description = "Include your Polkadot Holdings in MoneyMoney by providing comma separated polkadot wallet addresses as the username. Data is provided via free tier of Subscan API.",
+  services = { "Polkadot" }
+}
+
+local dotAddress
+local connection = Connection()
+local currency = "EUR"
+local SUBSCAN_API_KEY = "4d0c8ba32dde4a06bda83d52af49120f"
+
+function SupportsBank(protocol, bankCode)
+  return protocol == ProtocolWebBanking and bankCode == "Polkadot"
+end
+
+function InitializeSession(protocol, bankCode, username, username2, password, username3)
+  dotAddress = username:gsub("%s+", "")
+end
+
+function ListAccounts(knownAccounts)
+  local account = {
+    name = "Polkadot",
+    accountNumber = "Polkadot",
+    currency = currency,
+    portfolio = true,
+    type = "AccountTypePortfolio"
+  }
+
+  return {account}
+end
+
+function RefreshAccount(account, since)
+  local s = {}
+  local usdToEur = getUsdToEurRate()
+
+  for address in string.gmatch(dotAddress, '([^,]+)') do
+    local tokens = getTokensForAddress(address)
+    
+    for _, token in ipairs(tokens) do
+      processToken(token, address, s, usdToEur)
+    end
+  end
+
+  return {securities = s}
+end
+
+function EndSession()
+end
+
+-- Get USD to EUR conversion rate
+function getUsdToEurRate()
+  local response = JSON(connection:request("GET", "https://min-api.cryptocompare.com/data/price?fsym=USD&tsyms=EUR", {}))
+  return response:dictionary()['EUR']
+end
+
+-- Fetch tokens from Subscan API
+function getTokensForAddress(address)
+  local headers = {
+    ["Content-Type"] = "application/json",
+    ["x-api-key"] = SUBSCAN_API_KEY
   }
   
-  local dotAddress
-  local connection = Connection()
-  local currency = "EUR"
+  local body = '{"address":"' .. address .. '"}'
+  local response = JSON(connection:request("POST", "https://assethub-polkadot.api.subscan.io/api/v2/scan/account/tokens", headers, body))
+  local data = response:dictionary()
   
-  function SupportsBank (protocol, bankCode)
-    return protocol == ProtocolWebBanking and bankCode == "Polkadot"
+  if data and data.data and data.data.native then
+    return data.data.native
   end
   
-  function InitializeSession (protocol, bankCode, username, username2, password, username3)
-    dotAddress = username:gsub("%s+", "")
+  return {}
+end
+
+-- Convert balance using decimals from API
+function convertBalance(balance, decimals)
+  local divisor = 10 ^ decimals
+  return balance / divisor
+end
+
+-- Convert USD price to EUR
+function convertPriceToEur(usdPrice, usdToEur)
+  if usdPrice and usdToEur then
+    return usdPrice * usdToEur
   end
-  
-  function ListAccounts (knownAccounts)
-    local account = {
-      name = "Polkadot",
-      accountNumber = "Polkadot",
-      currency = currency,
-      portfolio = true,
-      type = "AccountTypePortfolio"
-    }
-  
-    return {account}
-  end
-  
-  function RefreshAccount (account, since)
-    local s = {}
-    prices = requestDotPrice()
-  
-    for address in string.gmatch(dotAddress, '([^,]+)') do
-      dotFreeBalance = convertDots(requestDotQuantityForDotAddress(address)["free"])
-      dotReservedBalance = convertDots(requestDotQuantityForDotAddress(address)["reserved"])
-  
-      s[#s+1] = {
-        name = "DOT Free (Polkadot Network) " .. address,
+  return nil
+end
+
+-- Token handlers dispatch table
+local tokenHandlers = {
+  Native = function(token, address, securities, usdToEur)
+    local decimals = token.decimals or 10
+    local symbol = token.symbol or "DOT"
+    local priceUsd = token.price
+    local priceEur = convertPriceToEur(priceUsd, usdToEur)
+    
+    -- Free balance
+    if token.balance and tonumber(token.balance) > 0 then
+      local freeBalance = convertBalance(tonumber(token.balance), decimals)
+      table.insert(securities, {
+        name = symbol .. " Free (" .. address .. ")",
         currency = nil,
         market = "cryptocompare",
-        quantity = dotFreeBalance,
-        price = prices,
-      }
-
-      if tonumber(dotReservedBalance) > 0 then
-        s[#s+1] = {
-          name = "DOT Staked (Polkadot Network)" .. address,
-          currency = nil,
-          market = "cryptocompare",
-          quantity = dotReservedBalance,
-          price = prices,
-        }
-      end
+        quantity = freeBalance,
+        price = priceEur,
+      })
     end
+    
+    -- Bonded balance
+    if token.bonded and tonumber(token.bonded) > 0 then
+      local bondedBalance = convertBalance(tonumber(token.bonded), decimals)
+      table.insert(securities, {
+        name = symbol .. " Bonded (" .. address .. ")",
+        currency = nil,
+        market = "cryptocompare",
+        quantity = bondedBalance,
+        price = priceEur,
+      })
+    end
+    
+    -- Unbonding balance
+    if token.unbonding and tonumber(token.unbonding) > 0 then
+      local unbondingBalance = convertBalance(tonumber(token.unbonding), decimals)
+      table.insert(securities, {
+        name = symbol .. " Unbonding (" .. address .. ")",
+        currency = nil,
+        market = "cryptocompare",
+        quantity = unbondingBalance,
+        price = priceEur,
+      })
+    end
+    
+    -- Reserved balance
+    if token.reserved and tonumber(token.reserved) > 0 then
+      local reservedBalance = convertBalance(tonumber(token.reserved), decimals)
+      table.insert(securities, {
+        name = symbol .. " Reserved (" .. address .. ")",
+        currency = nil,
+        market = "cryptocompare",
+        quantity = reservedBalance,
+        price = priceEur,
+      })
+    end
+  end,
   
-    return {securities = s}
+  Assets = function(token, address, securities, usdToEur)
+    local decimals = token.decimals or 10
+    local symbol = token.symbol or "UNKNOWN"
+    local priceUsd = token.price
+    local priceEur = convertPriceToEur(priceUsd, usdToEur)
+    
+    if token.balance and tonumber(token.balance) > 0 then
+      local balance = convertBalance(tonumber(token.balance), decimals)
+      table.insert(securities, {
+        name = symbol .. " (" .. address .. ")",
+        currency = nil,
+        market = "cryptocompare",
+        quantity = balance,
+        price = priceEur,
+      })
+    end
+  end,
+  
+  ForeignAssets = function(token, address, securities, usdToEur)
+    local decimals = token.decimals or 10
+    local symbol = token.symbol or "UNKNOWN"
+    local priceUsd = token.price
+    local priceEur = convertPriceToEur(priceUsd, usdToEur)
+    
+    if token.balance and tonumber(token.balance) > 0 then
+      local balance = convertBalance(tonumber(token.balance), decimals)
+      table.insert(securities, {
+        name = symbol .. " (Foreign) (" .. address .. ")",
+        currency = nil,
+        market = "cryptocompare",
+        quantity = balance,
+        price = priceEur,
+      })
+    end
+  end,
+  
+  NFT = function(token, address, securities, usdToEur)
+    -- Skip NFTs entirely
   end
-  
-  function EndSession ()
-  end
-  
-  function requestDotPrice()
-    response = JSON(connection:request("GET", cryptocompareRequestUrl(), {}))
-    return response:dictionary()['EUR']
-  end
-  
-  
-  function requestDotQuantityForDotAddress(dotAddress)
-    response = JSON(connection:request("GET",PolkadotRequestUrl(dotAddress), {}))
-    return response:dictionary()["data"][dotAddress]["address"]["balance"]
-  end
-  
-  function cryptocompareRequestUrl()
-    return "https://min-api.cryptocompare.com/data/price?fsym=DOT&tsyms=EUR"
-  end
+}
 
-  function PolkadotRequestUrl(dotAddress)
-    return "https://api.blockchair.com/polkadot/raw/address/" .. dotAddress
+-- Process a single token
+function processToken(token, address, securities, usdToEur)
+  local category = token.category or "Native"
+  local handler = tokenHandlers[category]
+  
+  if handler then
+    handler(token, address, securities, usdToEur)
   end
-
-  function convertDots(dots)
-    return dots / 10000000000
-  end
+end
