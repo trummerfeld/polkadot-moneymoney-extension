@@ -85,15 +85,15 @@ function getTokensForAddress(address)
     ["Content-Type"] = "application/json",
     ["x-api-key"] = SUBSCAN_API_KEY
   }
-  
+
   local body = '{"address":"' .. address .. '"}'
   local response = JSON(connection:request("POST", "https://assethub-polkadot.api.subscan.io/api/v2/scan/account/tokens", body, headers))
   local data = response:dictionary()
-  
-  if data and data.data and data.data.native then
-    return data.data.native
+
+  if data and data.data and data.data.list then
+    return data.data.list
   end
-  
+
   return {}
 end
 
@@ -118,10 +118,15 @@ local tokenHandlers = {
     local symbol = token.symbol or "DOT"
     local priceUsd = token.price
     local priceEur = convertPriceToEur(priceUsd, usdToEur)
-    
-    -- Free balance
-    if token.balance and tonumber(token.balance) > 0 then
-      local freeBalance = convertBalance(tonumber(token.balance), decimals)
+
+    local balance = tonumber(token.balance) or 0
+    local reserved = tonumber(token.reserved) or 0
+
+    -- Free balance = total balance - reserved
+    -- Only show if there's actually free balance available
+    local freeAmount = balance - reserved
+    if freeAmount > 0 then
+      local freeBalance = convertBalance(freeAmount, decimals)
       table.insert(securities, {
         name = symbol .. " Free (" .. address .. ")",
         currency = nil,
@@ -130,34 +135,10 @@ local tokenHandlers = {
         price = priceEur,
       })
     end
-    
-    -- Bonded balance
-    if token.bonded and tonumber(token.bonded) > 0 then
-      local bondedBalance = convertBalance(tonumber(token.bonded), decimals)
-      table.insert(securities, {
-        name = symbol .. " Bonded (" .. address .. ")",
-        currency = nil,
-        market = "cryptocompare",
-        quantity = bondedBalance,
-        price = priceEur,
-      })
-    end
-    
-    -- Unbonding balance
-    if token.unbonding and tonumber(token.unbonding) > 0 then
-      local unbondingBalance = convertBalance(tonumber(token.unbonding), decimals)
-      table.insert(securities, {
-        name = symbol .. " Unbonding (" .. address .. ")",
-        currency = nil,
-        market = "cryptocompare",
-        quantity = unbondingBalance,
-        price = priceEur,
-      })
-    end
-    
-    -- Reserved balance
-    if token.reserved and tonumber(token.reserved) > 0 then
-      local reservedBalance = convertBalance(tonumber(token.reserved), decimals)
+
+    -- Reserved balance (cannot be moved)
+    if reserved > 0 then
+      local reservedBalance = convertBalance(reserved, decimals)
       table.insert(securities, {
         name = symbol .. " Reserved (" .. address .. ")",
         currency = nil,

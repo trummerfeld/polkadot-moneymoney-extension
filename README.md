@@ -26,3 +26,45 @@ Once downloaded, move `dot.lua` to your MoneyMoney Extensions folder.
 
 * EUR is the base currency for this Extension
 * This Extension works with MoneyMoney >=2.4.9 (from Beta onwards)
+
+## Development
+
+### Testing
+
+This project uses [busted](https://olivinelabs.com/busted/) for testing the Lua implementation.
+
+#### Setup Testing Environment (First Time Only)
+
+```bash
+# Install Lua and LuaRocks (macOS)
+brew install lua luarocks
+
+# Install testing framework
+luarocks install busted
+```
+
+#### Running Tests
+
+```bash
+# Run all tests
+busted
+
+# Run with verbose output
+busted --verbose
+
+# Watch mode (requires watchexec)
+brew install watchexec
+watchexec -e lua busted
+```
+
+#### Test Coverage
+
+The test suite includes 23+ tests covering:
+- Balance conversion with different decimals (10, 12, 18)
+- USD to EUR price conversion
+- All token types: Native (DOT), Assets, ForeignAssets, NFTs
+- Multiple balance types: free, bonded, unbonding, reserved
+- Real Subscan API response processing
+- Edge cases (zero balances, nil prices)
+
+See `spec/dot_spec.lua` for the full test suite.

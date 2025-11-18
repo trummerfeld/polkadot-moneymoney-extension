@@ -39,3 +39,8 @@ luac.out
 *.x86_64
 *.hex
 
+# Test coverage and busted artifacts
+*.test.out
+luacov.*.out
+luacov.report.out
+luacov.stats.out
