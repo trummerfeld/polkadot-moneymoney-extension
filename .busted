@@ -1,0 +1,9 @@
+return {
+  default = {
+    verbose = true,
+    coverage = false,
+    ROOT = {"spec/"},
+    pattern = "_spec",
+    ["exclude-pattern"] = "mocks"
+  }
+}
