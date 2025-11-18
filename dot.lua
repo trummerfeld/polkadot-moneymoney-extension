@@ -87,7 +87,7 @@ function getTokensForAddress(address)
   }
   
   local body = '{"address":"' .. address .. '"}'
-  local response = JSON(connection:request("POST", "https://assethub-polkadot.api.subscan.io/api/v2/scan/account/tokens", headers, body))
+  local response = JSON(connection:request("POST", "https://assethub-polkadot.api.subscan.io/api/v2/scan/account/tokens", body, headers))
   local data = response:dictionary()
   
   if data and data.data and data.data.native then
