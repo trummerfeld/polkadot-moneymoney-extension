@@ -1,11 +1,9 @@
 -- Polkadot Network Extension for MoneyMoney
 -- Gets Address Balances from Subscan API (free tier)
 --
--- This is an adaptation of the original Polkadot extension by trummerfeld:
--- https://github.com/trummerfeld/polkadot-moneymoney-extension
---
--- Original Copyright (c) 2022 trummerfeld
--- Modifications and enhancements (c) 2025
+-- Copyright (c) 2022 trummerfeld
+-- Feel free to buy me a coffee
+-- 1xHjUKhSYxjHHR9iEXN5YBXuxZsHPkUcZV4nJ2DeGX6UV6w - DOT
 --
 -- Permission is hereby granted, free of charge, to any person obtaining a copy
 -- of this software and associated documentation files (the "Software"), to deal
