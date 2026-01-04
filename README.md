@@ -1,6 +1,6 @@
 # Polkadot Network Extension for MoneyMoney
 
-Fetches Polkadot address balances from the Blockchair API (free tier) and displays them as securites in MoneyMoney.
+Fetches Polkadot address balances from the Subscan API (free tier) and displays them as securities in MoneyMoney.
 
 ![MoneyMoney screenshot with Polkadot Balance](screenshot.png)
 
